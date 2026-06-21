@@ -10,8 +10,9 @@ public abstract class AbstractTaskCommand implements TaskCommand {
         this.task= task;
     }
 
+//     final : Because you never want a subclass to accidentally override it
     @Override
-    public void execute() throws Exception {
+    public final  void execute() throws Exception {
         long startTime = System.currentTimeMillis();
         try{
             // Pre-execute hook: set timestamps, update status, etc.
@@ -22,7 +23,8 @@ public abstract class AbstractTaskCommand implements TaskCommand {
             System.out.println("[" + task.getId() + "] Completed in " + elapsed + "ms");
 
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            System.out.println("[" + task.getId() + "] Failed: " + e.getMessage());
+            throw e;  // <-- let WorkerThread handle it
         }
     }
     protected abstract void doExecute() throws Exception;
