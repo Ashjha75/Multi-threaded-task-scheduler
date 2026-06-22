@@ -3,6 +3,7 @@
        alt="Multi-Threaded Task Scheduler"
        width="100%">
 </p>
+
 # Multi-Threaded Task Scheduler
 
 A production-inspired Java application that demonstrates core concurrency patterns through a priority-based task scheduling system.
