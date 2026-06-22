@@ -2,10 +2,10 @@ package com.taskscheduler;
 
 import com.taskscheduler.command.TaskCommand;
 import com.taskscheduler.factory.TaskFactory;
-import com.taskscheduler.model.Task;
-import com.taskscheduler.model.TaskPriority;
-import com.taskscheduler.model.TaskStatus;
-import com.taskscheduler.model.TaskType;
+import com.taskscheduler.model.*;
+import com.taskscheduler.observer.ConsoleLogListener;
+import com.taskscheduler.observer.MetricsListener;
+import com.taskscheduler.observer.TaskEventPublisher;
 import com.taskscheduler.repository.InMemoryTaskRepository;
 import com.taskscheduler.repository.TaskRepository;
 import com.taskscheduler.retry.ExponentialBackoffRetryPolicy;
@@ -17,50 +17,61 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Main {
-    public static void main(String[] args) {
-        System.out.println("=== Fixed Delay Policy ===");
-        RetryPolicy fixedPolicy = new FixedDelayRetryPolicy(5, 1000);
-        for (int attempt = 0; attempt < 5; attempt++) {
-            long delay = fixedPolicy.getDelayMs(attempt);
-            System.out.println("Attempt " + (attempt + 1) + ": wait " + delay + "ms");
-        }
+    public static void main(String[] args) throws InterruptedException {
+        // Create publisher and listeners
+        TaskEventPublisher publisher = new TaskEventPublisher();
 
-        System.out.println("\n=== Exponential Backoff Policy ===");
-        RetryPolicy exponentialPolicy = new ExponentialBackoffRetryPolicy(5, 500, 2.0);
-        for (int attempt = 0; attempt < 5; attempt++) {
-            long delay = exponentialPolicy.getDelayMs(attempt);
-            System.out.println("Attempt " + (attempt + 1) + ": wait " + delay + "ms");
-        }
+        ConsoleLogListener consoleListener = new ConsoleLogListener();
+        MetricsListener metricsListener = new MetricsListener();
 
-        System.out.println("\n=== No Retry Policy ===");
-        RetryPolicy noRetryPolicy = new NoRetryPolicy();
-        System.out.println("Max retries: " + noRetryPolicy.getMaxRetries());
+        // Register listeners
+        publisher.addListener(consoleListener);
+        publisher.addListener(metricsListener);
 
-        // Simulate a task with retries
-        System.out.println("\n=== Task Retry Decision ===");
-        Task task = Task.builder()
-                .name("Flaky network task")
+        // Simulate task lifecycle
+        Task task1 = Task.builder()
+                .name("Email notification")
                 .taskType(TaskType.EMAIL)
-                .priority(TaskPriority.MEDIUM)
-                .maxRetries(3)
+                .priority(TaskPriority.HIGH)
                 .build();
 
-        RetryPolicy policy = new ExponentialBackoffRetryPolicy(3, 500, 2.0);
-        Exception ex = new java.io.IOException("Network timeout");
+        System.out.println("=== Simulating successful task ===");
+        publisher.publishSubmitted(task1);
+        publisher.publishStarted(task1);
+        TaskResult result1 = new TaskResult(
+                1200,
+                "Email sent to 1,250 users",
+                null,
+                TaskStatus.SUCCESS,
+                task1.getId()
+        );
+        publisher.publishCompleted(task1, result1);
 
-        System.out.println("Task retries so far: " + task.getRetryCount());
-        System.out.println("Should retry? " + policy.shouldRetry(task, ex));
+        System.out.println("\n=== Simulating failed task with retry ===");
+        Task task2 = Task.builder()
+                .name("Database cleanup")
+                .taskType(TaskType.DATA_CLEANUP)
+                .priority(TaskPriority.MEDIUM)
+                .build();
 
-        // Simulate incrementing retries
-        task.incrementRetry();
-        System.out.println("\nAfter retry 1, task retries: " + task.getRetryCount());
-        System.out.println("Should retry? " + policy.shouldRetry(task, ex));
-        System.out.println("Next delay: " + policy.getDelayMs(1) + "ms");
+        publisher.publishSubmitted(task2);
+        publisher.publishStarted(task2);
+        publisher.publishFailed(task2, new Exception("Connection timeout"));
+        publisher.publishRetrying(task2, 0);
+        Thread.sleep(500);  // Simulate delay
+        publisher.publishStarted(task2);
+        TaskResult result2 = new TaskResult(
+                800,
+                "Cleaned 5,000 old records",
+                null,
+                TaskStatus.SUCCESS,
+                task2.getId()
 
-        task.incrementRetry();
-        task.incrementRetry();
-        System.out.println("\nAfter retry 3, task retries: " + task.getRetryCount());
-        System.out.println("Should retry? " + policy.shouldRetry(task, ex));
-        System.out.println("We are working 🪄");
+        );
+        publisher.publishCompleted(task2, result2);
+
+        // Print metrics
+        metricsListener.printSummary();
+       System.out.println("We are working 🪄");
     }
 }
