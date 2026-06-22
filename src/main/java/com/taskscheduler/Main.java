@@ -8,70 +8,59 @@ import com.taskscheduler.model.TaskStatus;
 import com.taskscheduler.model.TaskType;
 import com.taskscheduler.repository.InMemoryTaskRepository;
 import com.taskscheduler.repository.TaskRepository;
+import com.taskscheduler.retry.ExponentialBackoffRetryPolicy;
+import com.taskscheduler.retry.FixedDelayRetryPolicy;
+import com.taskscheduler.retry.NoRetryPolicy;
+import com.taskscheduler.retry.RetryPolicy;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class Main {
     public static void main(String[] args) {
-        InMemoryTaskRepository repo = new InMemoryTaskRepository();
+        System.out.println("=== Fixed Delay Policy ===");
+        RetryPolicy fixedPolicy = new FixedDelayRetryPolicy(5, 1000);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            long delay = fixedPolicy.getDelayMs(attempt);
+            System.out.println("Attempt " + (attempt + 1) + ": wait " + delay + "ms");
+        }
 
-        // Create some tasks
-        Task task1 = Task.builder()
-                .name("Process invoices")
-                .taskType(TaskType.FILE_PROCESSING)
-                .priority(TaskPriority.HIGH)
-                .build();
+        System.out.println("\n=== Exponential Backoff Policy ===");
+        RetryPolicy exponentialPolicy = new ExponentialBackoffRetryPolicy(5, 500, 2.0);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            long delay = exponentialPolicy.getDelayMs(attempt);
+            System.out.println("Attempt " + (attempt + 1) + ": wait " + delay + "ms");
+        }
 
-        Task task2 = Task.builder()
-                .name("Send notifications")
-                .taskType(TaskType.NOTIFICATION)
+        System.out.println("\n=== No Retry Policy ===");
+        RetryPolicy noRetryPolicy = new NoRetryPolicy();
+        System.out.println("Max retries: " + noRetryPolicy.getMaxRetries());
+
+        // Simulate a task with retries
+        System.out.println("\n=== Task Retry Decision ===");
+        Task task = Task.builder()
+                .name("Flaky network task")
+                .taskType(TaskType.EMAIL)
                 .priority(TaskPriority.MEDIUM)
+                .maxRetries(3)
                 .build();
 
-        Task task3 = Task.builder()
-                .name("Cleanup old logs")
-                .taskType(TaskType.DATA_CLEANUP)
-                .priority(TaskPriority.LOW)
-                .build();
+        RetryPolicy policy = new ExponentialBackoffRetryPolicy(3, 500, 2.0);
+        Exception ex = new java.io.IOException("Network timeout");
 
-        // Save them
-        repo.save(task1);
-        repo.save(task2);
-        repo.save(task3);
+        System.out.println("Task retries so far: " + task.getRetryCount());
+        System.out.println("Should retry? " + policy.shouldRetry(task, ex));
 
-        System.out.println("\nTotal tasks: " + repo.count());
+        // Simulate incrementing retries
+        task.incrementRetry();
+        System.out.println("\nAfter retry 1, task retries: " + task.getRetryCount());
+        System.out.println("Should retry? " + policy.shouldRetry(task, ex));
+        System.out.println("Next delay: " + policy.getDelayMs(1) + "ms");
 
-        // Find by status (all should be PENDING since we just created them)
-        System.out.println("\n--- Tasks with status PENDING ---");
-        repo.findByStatus(TaskStatus.PENDING).forEach(t ->
-                System.out.println("  " + t.getName())
-        );
-
-        // Find by priority
-        System.out.println("\n--- High priority tasks ---");
-        repo.findByPriority(TaskPriority.HIGH).forEach(t ->
-                System.out.println("  " + t.getName())
-        );
-
-        // Fetch one by ID
-        System.out.println("\n--- Fetch task by ID ---");
-        repo.findById(task1.getId()).ifPresent(t ->
-                System.out.println("Found: " + t.getName())
-        );
-
-        // Update a task (change its status)
-        task1.updateStatus(TaskStatus.PENDING, TaskStatus.RUNNING);
-        repo.update(task1);
-
-        // Verify the update
-        System.out.println("\n--- After updating task1 to RUNNING ---");
-        repo.printAll();
-
-        // Delete a task
-        boolean deleted = repo.delete(task2.getId());
-        System.out.println("\nDeleted task2: " + deleted);
-        System.out.println("Total tasks now: " + repo.count());
+        task.incrementRetry();
+        task.incrementRetry();
+        System.out.println("\nAfter retry 3, task retries: " + task.getRetryCount());
+        System.out.println("Should retry? " + policy.shouldRetry(task, ex));
         System.out.println("We are working 🪄");
     }
 }
