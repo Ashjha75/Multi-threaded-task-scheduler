@@ -10,6 +10,9 @@ import com.taskscheduler.retry.RetryPolicy;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class WorkerThread implements Runnable {
 
@@ -142,6 +145,26 @@ public class WorkerThread implements Runnable {
         }
     }
 
+    /**
+     * Schedule a task to be retried after a delay.
+     * Uses a one-off ScheduledExecutorService for simplicity.
+     */
     private void scheduleRetry(TaskCommand command, long delayMs) {
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        scheduler.schedule(() -> {
+            try {
+                // Re-queue the command
+                this.scheduler.submit(command);
+            } catch (InterruptedException e) {
+                System.err.println("Failed to re-queue task for retry: " + e.getMessage());
+                Thread.currentThread().interrupt();
+            } finally {
+                // Shut down the scheduler (it's a one-off)
+                scheduler.shutdown();
+            }
+        }, delayMs, TimeUnit.MILLISECONDS);
+    }
+    public void stop() {
+        running = false;
     }
 }
