@@ -86,15 +86,10 @@ public class TaskScheduler {
         }
         Task task = command.getTask();
 
-        try {
             // put() blocks if queue is full, so we handle capacity limits gracefully
             taskQueue.put(command);
             System.out.println("[Scheduler] Queued task: " + task.getName() +
                     " | Priority: " + task.getPriority());
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw e;
-        }
     }
 
     /**
