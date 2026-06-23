@@ -1,6 +1,7 @@
 package com.taskscheduler.scheduler;
 
 import com.taskscheduler.command.TaskCommand;
+import com.taskscheduler.model.Task;
 import com.taskscheduler.observer.TaskEventPublisher;
 import com.taskscheduler.repository.TaskRepository;
 import com.taskscheduler.retry.RetryPolicy;
@@ -50,5 +51,99 @@ public class TaskScheduler {
                 new ThreadPoolExecutor.AbortPolicy() // throw if overloaded
         );
     }
-t
+
+    /**
+     * Start worker threads. Each thread will block on queue.take() until work arrives.
+     */
+    public synchronized void start(int numWorkers) {
+        if (numWorkers <= 0) {
+            System.out.println("[Scheduler] Already running");
+            return;
+        }
+        running = true;
+        System.out.println("[Scheduler] Starting " + numWorkers + " worker threads");
+
+        for (int i = 0; i < numWorkers; i++) {
+            WorkerThread worker = new WorkerThread(
+                    taskQueue,
+                    repository,
+                    retryPolicy,
+                    eventPublisher,
+                    this  // pass scheduler reference so worker can re-queue on retry
+            );
+            workerPool.execute(worker);
+            activeCount.incrementAndGet();
+        }
+    }
+
+    /**
+     * Submit a task to the queue for execution.
+     * If queue is full, throws TaskQueueFullException.
+     */
+    public void submit(TaskCommand command) throws InterruptedException {
+        if (!running) {
+            throw new IllegalStateException("Scheduler not running");
+        }
+        Task task = command.getTask();
+
+        try {
+            // put() blocks if queue is full, so we handle capacity limits gracefully
+            taskQueue.put(command);
+            System.out.println("[Scheduler] Queued task: " + task.getName() +
+                    " | Priority: " + task.getPriority());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw e;
+        }
+    }
+
+    /**
+     * Graceful shutdown: stop accepting new tasks, but let in-flight tasks finish.
+     */
+    public synchronized void shutdown() {
+        if (!running) {
+            return;
+        }
+
+        running = false;
+        System.out.println("[Scheduler] Initiating graceful shutdown...");
+        workerPool.shutdown();
+
+        try{
+            if (!workerPool.awaitTermination(60, TimeUnit.SECONDS)) {
+                workerPool.shutdownNow();
+                System.out.println("[Scheduler] Forcefully shutting down workers");
+            }
+        }catch (InterruptedException e) {
+            workerPool.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
+        System.out.println("[Scheduler] Shutdown complete");
+    }
+
+    /**
+     * Immediate shutdown: interrupt everything.
+     */
+    public synchronized void shutdownNow() {
+        if (!running) {
+            return;
+        }
+        running = false;
+        System.out.println("[Scheduler] Initiating immediate shutdown...");
+        workerPool.shutdownNow();
+        System.out.println("[Scheduler] Shutdown complete");
+    }
+
+    public int getQueueSize() {
+        return taskQueue.size();
+    }
+
+    public int getActiveWorkerCount() {
+        return activeCount.get();
+    }
+
+    public boolean isRunning() {
+        return running;
+    }
 }
