@@ -14,16 +14,16 @@ import com.taskscheduler.service.TaskService;
 
 /**
  * Application entry point. This is the ONLY place where we instantiate everything.
- *
+ * <p>
  * Design principle: Dependency Injection
  * - Each class receives its dependencies via constructor
  * - No class creates its own dependencies (except here in Main)
  * - Easy to test: mock dependencies and inject them
  * - Easy to refactor: change implementations without touching other code
- *
+ * <p>
  * Example: Want to swap in-memory storage for database?
- *   Old: repository = new InMemoryTaskRepository();
- *   New: repository = new JdbcTaskRepository(dataSource);
+ * Old: repository = new InMemoryTaskRepository();
+ * New: repository = new JdbcTaskRepository(dataSource);
  * Everything else stays the same.
  */
 public class Main {
