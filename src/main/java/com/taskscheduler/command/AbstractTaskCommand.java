@@ -4,17 +4,17 @@ import com.taskscheduler.model.Task;
 
 public abstract class AbstractTaskCommand implements TaskCommand {
 
-    private final  Task task;
+    private final Task task;
 
-    public  AbstractTaskCommand( Task task ){
-        this.task= task;
+    public AbstractTaskCommand(Task task) {
+        this.task = task;
     }
 
-//     final : Because you never want a subclass to accidentally override it
+    //     final : Because you never want a subclass to accidentally override it
     @Override
-    public final  void execute() throws Exception {
+    public final void execute() throws Exception {
         long startTime = System.currentTimeMillis();
-        try{
+        try {
             // Pre-execute hook: set timestamps, update status, etc.
             System.out.println("[" + task.getId() + "] Executing: " + task.getName());
             // The hook — subclasses override this, never execute()
@@ -27,7 +27,9 @@ public abstract class AbstractTaskCommand implements TaskCommand {
             throw e;  // <-- let WorkerThread handle it
         }
     }
+
     protected abstract void doExecute() throws Exception;
+
     @Override
     public Task getTask() {
         return task;

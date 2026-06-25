@@ -9,8 +9,8 @@ public class FixedDelayRetryPolicy implements RetryPolicy {
     private final long delayMs;
 
     /**
-     * @param maxRetries   How many times to retry (0 = don't retry, 1 = retry once, etc.)
-     * @param delayMs      How many milliseconds to wait between attempts
+     * @param maxRetries How many times to retry (0 = don't retry, 1 = retry once, etc.)
+     * @param delayMs    How many milliseconds to wait between attempts
      */
     public FixedDelayRetryPolicy(int maxRetries, long delayMs) {
         if (maxRetries < 0) {
@@ -22,6 +22,7 @@ public class FixedDelayRetryPolicy implements RetryPolicy {
         this.maxRetries = maxRetries;
         this.delayMs = delayMs;
     }
+
     @Override
     public boolean shouldRetry(Task task, Exception ex) {
         if (task.getRetryCount() >= maxRetries) {
@@ -52,6 +53,7 @@ public class FixedDelayRetryPolicy implements RetryPolicy {
     public int getMaxRetries() {
         return maxRetries;
     }
+
     @Override
     public String getName() {
         return "FixedDelay(" + maxRetries + "x, " + delayMs + "ms)";
